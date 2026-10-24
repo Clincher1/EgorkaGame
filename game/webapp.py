@@ -195,6 +195,17 @@ async def _vk_context(request: web.Request):
         launch, config.vk_app_id or "", config.vk_secret or ""
     )
     if not ok:
+        # Диагностика без утечки секрета: причина, app_id, число vk-параметров,
+        # сам факт и длину ключа видно в логах Amvera.
+        logger.warning(
+            "VK launch отклонён: %s | app_id=%s, vk-ключей=%d, "
+            "VK_SECRET задан=%s (длина %s)",
+            reason,
+            launch.get("vk_app_id"),
+            sum(1 for k in launch if str(k).startswith("vk_")),
+            bool(config.vk_secret),
+            len(config.vk_secret) if config.vk_secret else 0,
+        )
         raise web.HTTPUnauthorized(reason=reason)
 
     storage_key = f"vk:{user_id}"

@@ -469,8 +469,15 @@ async function bootstrap() {
     await refresh();
     showMenu();
   } catch (err) {
+    closeModals();
+    setHidden(el("main-menu"), true);
+    setHidden(el("ending-overlay"), true);
     el("scene-title").textContent = "Не удалось загрузить игру";
-    el("scene-text").textContent = String(err.message || err);
+    const hint = Platform.isVK
+      ? " Ошибка проверки параметров запуска ВКонтакте — сообщи разработчику, " +
+        "он увидит причину в логах сервера."
+      : "";
+    el("scene-text").textContent = String(err.message || err) + hint;
   }
 }
 

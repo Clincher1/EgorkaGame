@@ -1,11 +1,9 @@
 """Тесты VK-подписи, компактного сохранения и stateless API."""
 
-import base64
-import hashlib
-import hmac
 import json
 import random
 import tempfile
+from urllib.parse import parse_qsl, urlparse
 
 from aiohttp import test_utils
 
@@ -18,6 +16,7 @@ from game.vk import (
     dump_compact,
     fits_storage,
     load_compact,
+    sign_launch_params,
     verify_launch_params,
 )
 from game.webapp import create_app
@@ -27,11 +26,7 @@ SECRET = "test-secure-key"
 
 
 def _sign(params: dict) -> str:
-    check = {k: v for k, v in params.items() if k != "sign"}
-    dcs = "&".join(f"{k}={check[k]}" for k in sorted(check))
-    secret = hashlib.sha256(SECRET.encode()).digest()
-    digest = hmac.new(secret, dcs.encode(), hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    return sign_launch_params(params, SECRET)
 
 
 def _launch(user_id: int = 555, app_id: str = APP_ID) -> dict:
@@ -68,6 +63,46 @@ def test_missing_sign_rejected():
         {"vk_app_id": APP_ID, "vk_user_id": "1"}, APP_ID, SECRET
     )
     assert not ok and "sign" in reason
+
+
+def test_official_vk_vector_accepted():
+    # Эталонный вектор из репозитория VKCOM/vk-apps-launch-params
+    # (examples/python3.py): защищённый ключ, реальный формат launch params.
+    url = (
+        "https://example.com/?vk_user_id=494075&vk_app_id=6736218"
+        "&vk_is_app_user=1&vk_are_notifications_enabled=1&vk_language=ru"
+        "&vk_access_token_settings=&vk_platform=android"
+        "&sign=htQFduJpLxz7ribXRZpDFUH-XEUhC9rBPTJkjUFEkRA"
+    )
+    params = dict(parse_qsl(urlparse(url).query, keep_blank_values=True))
+    ok, user_id, reason = verify_launch_params(
+        params, app_id="6736218", secure_key="wvl68m4dR1UpLrVRli"
+    )
+    assert ok, reason
+    assert user_id == 494075
+
+
+def test_non_vk_params_ignored_in_signature():
+    # Лишние ключи без префикса vk_ (включая sign) не участвуют в подписи.
+    params = _launch()
+    params["custom_param"] = "anything"
+    ok, _, reason = verify_launch_params(params, APP_ID, SECRET)
+    assert ok, reason
+
+
+def test_roundtrip_sign_and_verify():
+    params = {
+        "vk_app_id": APP_ID,
+        "vk_user_id": "392173456",
+        "vk_platform": "desktop_web",
+        "vk_ts": "1792867232",
+        "vk_ref": "snippet_im",
+        "vk_access_token_settings": "",
+    }
+    signed = dict(params)
+    signed["sign"] = sign_launch_params(params, SECRET)
+    ok, user_id, _ = verify_launch_params(signed, APP_ID, SECRET)
+    assert ok and user_id == 392173456
 
 
 # --------------------------------------------------------------------------

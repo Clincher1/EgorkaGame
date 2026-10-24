@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import json
+from urllib.parse import urlencode
 
 from .models import GameState
 
@@ -25,6 +26,26 @@ VK_STORAGE_LIMIT = 4096
 # ---------------------------------------------------------------------------
 # Проверка подписи запуска
 # ---------------------------------------------------------------------------
+
+def _canonical_query(params: dict) -> str:
+    """Каноническая строка по спецификации VK: только ключи vk_*,
+    лексикографическая сортировка, urlencode (как в официальном примере
+    VKCOM/vk-apps-launch-params/examples/python3.py)."""
+    ordered = {k: params[k] for k in sorted(params) if k.startswith("vk_")}
+    return urlencode(ordered, doseq=True)
+
+
+def sign_launch_params(params: dict, secure_key: str) -> str:
+    """Подписывает параметры запуска. Эталон — официальный алгоритм VK:
+    HMAC-SHA256 с самим защищённым ключом (без хеширования ключа),
+    base64url без padding."""
+    digest = hmac.new(
+        secure_key.encode(),
+        _canonical_query(params).encode(),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
 
 def verify_launch_params(
     params: dict, app_id: str | int, secure_key: str
@@ -43,14 +64,11 @@ def verify_launch_params(
     if str(params.get("vk_app_id")) != str(app_id):
         return False, None, "Чужой vk_app_id"
 
-    check = {k: v for k, v in params.items() if k != "sign"}
-    data_check_string = "&".join(
-        f"{key}={check[key]}" for key in sorted(check)
-    )
-    secret = hashlib.sha256(secure_key.encode()).digest()
-    digest = hmac.new(secret, data_check_string.encode(), hashlib.sha256).digest()
-    expected = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-    if not hmac.compare_digest(expected, sign):
+    if not any(k.startswith("vk_") for k in params):
+        return False, None, "Нет параметров vk_*"
+
+    expected = sign_launch_params(params, secure_key)
+    if not hmac.compare_digest(expected, str(sign)):
         return False, None, "Подпись не совпала"
 
     try:
