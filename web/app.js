@@ -63,8 +63,18 @@ const VKMode = (() => {
   }
 
   async function showRewardedAd() {
+    // По документации VK для рекламы за вознаграждение сначала проверяем
+    // наличие рекламного материала (заодно это предзагрузка без задержки).
+    try {
+      const check = await bridge.send("VKWebAppCheckNativeAds", {
+        ad_format: "reward",
+        use_waterfall: true,
+      });
+      if (check && check.result === false) return false; // заполнения нет
+    } catch (_err) {
+      // Старый клиент без метода проверки — пробуем показать напрямую.
+    }
     // Нативная rewarded-реклама VK с водопадом заглушек.
-    // Метод доступен в VK Bridge 3.x; более старый ShowRewardVideo из API убран.
     try {
       const res = await bridge.send("VKWebAppShowNativeAds", {
         ad_format: "reward",

@@ -20,6 +20,7 @@ def test_index_loads_vk_bridge_and_not_telegram_script():
     vendor_text = vendor.read_text(encoding="utf-8")
     assert "vkBridge" in vendor_text
     assert "VKWebAppInit" in vendor_text
+    assert "VKWebAppCheckNativeAds" in vendor_text
     assert "VKWebAppShowNativeAds" in vendor_text
     # Лицензия MIT приложена рядом с вендорной копией.
     assert (WEB / "vendor" / "vk-bridge.LICENSE").is_file()
@@ -40,7 +41,9 @@ def test_app_js_implements_vk_storage_and_rewarded_ads():
     assert "VKWebAppInit" in APP_JS
     assert "VKWebAppStorageGet" in APP_JS
     assert "VKWebAppStorageSet" in APP_JS
-    assert "VKWebAppShowNativeAds" in APP_JS  # актуальная rewarded-реклама
+    # rewarded: сначала проверка наличия ролика, затем показ
+    assert "VKWebAppCheckNativeAds" in APP_JS
+    assert "VKWebAppShowNativeAds" in APP_JS
     assert "/api/vk/state" in APP_JS
 
 
