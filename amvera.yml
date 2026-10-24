@@ -1,0 +1,17 @@
+# Amvera Cloud — российский PaaS (https://cloud.amvera.ru), доступ из РФ без VPN.
+# Документация формата:
+# https://docs.amvera.ru/applications/configuration/docker.html
+#
+# В режиме VK Mini App приложение stateless: сохранения лежат в VK Storage,
+# поэтому постоянный диск (persistenceMount) не нужен.
+meta:
+  environment: docker
+  toolchain:
+    name: docker
+build:
+  dockerfile: Dockerfile
+  skip: false
+run:
+  # Amvera по умолчанию ожидает порт 80; наше приложение слушает 8080
+  # (game.config: WEB_PORT/PORT, дефолт 8080, хост 0.0.0.0).
+  containerPort: 8080
