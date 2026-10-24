@@ -17,7 +17,6 @@ import signal
 
 from aiohttp import web
 
-from .bot import EgorBot, set_bot_commands
 from .config import load_config
 from .storage import SupabaseStorage, build_storage
 from .webapp import create_app
@@ -36,6 +35,10 @@ async def main() -> None:
     bot = dp = None
     webapp_url = os.getenv("WEBAPP_URL") or config.webhook_url
     if config.bot_enabled:
+        # Ленивый импорт: aiogram тянет ~130 МБ RSS, а в VK-сборке бот
+        # не нужен (BOT_TOKEN не задан) — контейнер укладывается в младший тариф.
+        from .bot import EgorBot, set_bot_commands
+
         egor_bot = EgorBot(config.bot_token, storage, webapp_url)  # type: ignore[arg-type]
         bot = egor_bot.bot
         dp = egor_bot.dp
