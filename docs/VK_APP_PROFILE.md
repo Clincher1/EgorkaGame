@@ -74,7 +74,8 @@
 - Реклама: `VKWebAppShowNativeAds` (`ad_format: "reward"`, водопад),
   легаси-фолбэк `VKWebAppShowRewardVideo`; награду начисляет сервер,
   кулдаун 60 сек проверяется там же.
-- Telegram-SDK не загружается в VK-контексте (ленивая подгрузка только при
-  параметре `tgWebAppData`), веб-режим с анонимным id работает по умолчанию.
+- В игроковом фронтенде (`web/`) нет ни Telegram-SDK, ни упоминаний Telegram:
+  продукт VK-only, страж в `test_frontend_assets.py` не даст вернуть их назад.
+  Веб-режим с анонимным id оставлен только для локальной отладки в браузере.
 - Боевой запуск сервера: `CENSOR_MODE=symbols PERMADEATH=false
   VK_APP_ID=54850918 VK_SECRET=<ключ из настроек> WEB_PORT=8080`.

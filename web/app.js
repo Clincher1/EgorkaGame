@@ -1,9 +1,9 @@
 /* «ПТОшник против Системы» — фронтенд без сборки: ванильный JS + fetch.
  *
- * Платформа определяется автоматически по параметрам запуска:
- *   1. VK Mini App  — vk_app_id + sign в URL: VK Bridge, сохранения в VK Storage;
- *   2. Telegram     — tgWebAppData в URL: скрипт Telegram подгружается только тут;
- *   3. Обычный браузер (по умолчанию) — анонимный id в localStorage.
+ * Два режима, платформа определяется автоматически по параметрам запуска:
+ *   1. VK Mini App — vk_app_id + sign в URL: VK Bridge, сохранения в VK Storage;
+ *   2. Обычный браузер (по умолчанию) — анонимный id в localStorage, удобно
+ *      для локальной разработки и проверки в браузере.
  */
 "use strict";
 
@@ -14,18 +14,7 @@
 const urlParams = new URLSearchParams(window.location.search);
 const Platform = {
   isVK: urlParams.has("vk_app_id") && urlParams.has("sign"),
-  isTG: urlParams.has("tgWebAppData"),
 };
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Не удалось загрузить " + src));
-    document.head.appendChild(script);
-  });
-}
 
 // ---------------------------------------------------------------------------
 // VK Mini App: Bridge + VK Storage, состояние гоняем через сервер в каждом запросе
@@ -97,23 +86,7 @@ const VKMode = (() => {
 })();
 
 // ---------------------------------------------------------------------------
-// Telegram Mini App (скрипт подгружается лениво — в VK-сборке его нет вообще)
-// ---------------------------------------------------------------------------
-
-let tg = null;
-
-async function initTelegram() {
-  if (!Platform.isTG) return;
-  if (!window.Telegram) {
-    await loadScript("https://telegram.org/js/telegram-web-app.js");
-  }
-  tg = window.Telegram.WebApp;
-  tg.ready();
-  tg.expand();
-}
-
-// ---------------------------------------------------------------------------
-// Веб-режим: анонимный идентификатор в localStorage
+// Веб-режим: анонимный идентификатор в localStorage (локальная разработка)
 // ---------------------------------------------------------------------------
 
 function getWebUserId() {
@@ -126,7 +99,7 @@ function getWebUserId() {
 }
 
 async function webCall(path, payload) {
-  const body = tg && tg.initData ? { initData: tg.initData } : { user_id: getWebUserId() };
+  const body = { user_id: getWebUserId() };
   Object.assign(body, payload);
   const resp = await fetch(path, {
     method: "POST",
@@ -475,8 +448,6 @@ async function bootstrap() {
   try {
     if (Platform.isVK) {
       await VKMode.init();
-    } else if (Platform.isTG) {
-      await initTelegram();
     }
     await refresh();
     showMenu();

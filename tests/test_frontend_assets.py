@@ -14,8 +14,7 @@ SOUND_JS = (WEB / "sound.js").read_text(encoding="utf-8")
 def test_index_loads_vk_bridge_and_not_telegram_script():
     # VK Bridge подключён официальным CDN-пакетом.
     assert "@vkontakte/vk-bridge" in INDEX_HTML
-    # Чужая соцсеть не должна светиться ни одним ресурсом в VK-сборке:
-    # Telegram-SDK подгружается лениво из app.js только в Telegram-режиме.
+    # Никаких скриптов чужих платформ в странице, которая отдаётся игрокам.
     assert "telegram.org" not in INDEX_HTML
     assert "telegram-web-app" not in INDEX_HTML
 
@@ -27,9 +26,17 @@ def test_app_js_implements_vk_storage_and_rewarded_ads():
     assert "VKWebAppStorageSet" in APP_JS
     assert "VKWebAppShowNativeAds" in APP_JS  # актуальная rewarded-реклама
     assert "/api/vk/state" in APP_JS
-    # Telegram остаётся поддержан, но его SDK грузится только по факту запуска.
-    assert "tgWebAppData" in APP_JS
-    assert "telegram-web-app.js" in APP_JS
+
+
+def test_no_telegram_in_player_facing_frontend():
+    # Продукт — VK-only: ни SDK, ни упоминаний чужих платформ в выдаваемых
+    # браузеру файлах быть не должно (требование модерации 3.13/4.1.8).
+    for path in WEB.rglob("*"):
+        if path.suffix not in (".js", ".html", ".css"):
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        assert "telegram" not in text, path
+        assert "tgwebapp" not in text, path
 
 
 def test_default_mode_remains_anonymous_web():

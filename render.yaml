@@ -20,6 +20,4 @@ services:
         value: symbols
       - key: PERMADEATH
         value: "false"
-      # Render сам подставляет PORT; веб-режим без Telegram-бота.
-      - key: BOT_TOKEN
-        sync: false
+      # Render сам подставляет PORT в переменную PORT, её читает game.config.

@@ -41,9 +41,11 @@
 - [x] Stateless-эндпоинты `/api/vk/*` (состояние в запросе, хранение — VK Storage)
 - [x] Тесты подписи, лимита, round-trip и API — 9 шт.
 - [x] VK-фронтенд в `web/app.js`: VK Bridge (`VKWebAppInit`, Storage get/set,
-  `VKWebAppShowNativeAds` rewarded + легаси-фолбэк), автоопределение платформы
-- [x] Telegram-SDK удалён из статической выдачи: скрипт грузится лениво только
-  при запуске с `tgWebAppData` (тест-страж `test_frontend_assets.py`)
+  `VKWebAppShowNativeAds` rewarded + легаси-фолбэк), автоопределение VK-запуска
+- [x] Полностью убран Telegram из игрокового фронтенда: ни SDK, ни упоминаний
+  в `web/` (тест-страж `test_no_telegram_in_player_facing_frontend`).
+  Серверный Telegram-бот заморожен и в VK-сборке не участвует — решение по
+  нему принимаем после VK-релиза
 
 ### M3.5. Звук
 - [x] `tools/make_sounds.py` — синтез WAV (клик, успех, провал, награда, истощение), без лицензий
