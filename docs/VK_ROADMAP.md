@@ -40,8 +40,10 @@
 - [x] Компактное сохранение: короткие ключи, без логов, лимит 4096 байт (тест на «тяжёлом» состоянии)
 - [x] Stateless-эндпоинты `/api/vk/*` (состояние в запросе, хранение — VK Storage)
 - [x] Тесты подписи, лимита, round-trip и API — 9 шт.
-- [ ] VK-фронтенд `web/vk/`: VK Bridge, Storage API, вызов rewarded-рекламы
-- [ ] Удаление любых упоминаний Telegram из VK-сборки
+- [x] VK-фронтенд в `web/app.js`: VK Bridge (`VKWebAppInit`, Storage get/set,
+  `VKWebAppShowNativeAds` rewarded + легаси-фолбэк), автоопределение платформы
+- [x] Telegram-SDK удалён из статической выдачи: скрипт грузится лениво только
+  при запуске с `tgWebAppData` (тест-страж `test_frontend_assets.py`)
 
 ### M3.5. Звук
 - [x] `tools/make_sounds.py` — синтез WAV (клик, успех, провал, награда, истощение), без лицензий

@@ -1,13 +1,122 @@
-/* «ПТОшник Егор» — фронтенд без сборки: ванильный JS + fetch. */
+/* «ПТОшник против Системы» — фронтенд без сборки: ванильный JS + fetch.
+ *
+ * Платформа определяется автоматически по параметрам запуска:
+ *   1. VK Mini App  — vk_app_id + sign в URL: VK Bridge, сохранения в VK Storage;
+ *   2. Telegram     — tgWebAppData в URL: скрипт Telegram подгружается только тут;
+ *   3. Обычный браузер (по умолчанию) — анонимный id в localStorage.
+ */
 "use strict";
 
-const tg = window.Telegram?.WebApp ?? null;
-if (tg) {
+// ---------------------------------------------------------------------------
+// Определение платформы
+// ---------------------------------------------------------------------------
+
+const urlParams = new URLSearchParams(window.location.search);
+const Platform = {
+  isVK: urlParams.has("vk_app_id") && urlParams.has("sign"),
+  isTG: urlParams.has("tgWebAppData"),
+};
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Не удалось загрузить " + src));
+    document.head.appendChild(script);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// VK Mini App: Bridge + VK Storage, состояние гоняем через сервер в каждом запросе
+// ---------------------------------------------------------------------------
+
+const VKMode = (() => {
+  if (!Platform.isVK) return null;
+
+  const bridge = window.vkBridge;
+  const launch = Object.fromEntries(urlParams.entries());
+  const STORAGE_KEY = "pto_save_v1";
+  let save = "";
+
+  const PATHS = {
+    "/api/state": "/api/vk/state",
+    "/api/choose": "/api/vk/choose",
+    "/api/use": "/api/vk/use",
+    "/api/reset": "/api/vk/reset",
+    "/api/ad/reward": "/api/vk/ad",
+  };
+
+  async function init() {
+    if (!bridge) throw new Error("VK Bridge не загрузился");
+    await bridge.send("VKWebAppInit");
+    const res = await bridge.send("VKWebAppStorageGet", { keys: [STORAGE_KEY] });
+    const found = (res.keys || []).find((k) => k.key === STORAGE_KEY);
+    save = found?.value || "";
+  }
+
+  async function persist(nextSave) {
+    if (!nextSave || nextSave === save) return;
+    save = nextSave;
+    await bridge.send("VKWebAppStorageSet", { key: STORAGE_KEY, value: save });
+  }
+
+  async function call(path, payload) {
+    const resp = await fetch(PATHS[path] || path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ launch, save, ...payload }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || data.reason || resp.statusText);
+    await persist(data.save);
+    return data;
+  }
+
+  async function showRewardedAd() {
+    // Актуальный метод: нативная rewarded-реклама с водопадом заглушек.
+    try {
+      const res = await bridge.send("VKWebAppShowNativeAds", {
+        ad_format: "reward",
+        use_waterfall: true,
+      });
+      if (res.result === true) return true;
+    } catch (_err) {
+      // Старый метод оставлен как запасной для старых клиентов VK.
+      try {
+        const legacy = await bridge.send("VKWebAppShowRewardVideo");
+        if (legacy.result === true) return true;
+      } catch (_err2) {
+        /* упадём в общую ветку «ролик недоступен» */
+      }
+    }
+    return false;
+  }
+
+  return { init, call, showRewardedAd };
+})();
+
+// ---------------------------------------------------------------------------
+// Telegram Mini App (скрипт подгружается лениво — в VK-сборке его нет вообще)
+// ---------------------------------------------------------------------------
+
+let tg = null;
+
+async function initTelegram() {
+  if (!Platform.isTG) return;
+  if (!window.Telegram) {
+    await loadScript("https://telegram.org/js/telegram-web-app.js");
+  }
+  tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
 }
 
-function getUserId() {
+// ---------------------------------------------------------------------------
+// Веб-режим: анонимный идентификатор в localStorage
+// ---------------------------------------------------------------------------
+
+function getWebUserId() {
   let id = localStorage.getItem("egor_user_id");
   if (!id) {
     id = "web-" + crypto.randomUUID();
@@ -16,8 +125,8 @@ function getUserId() {
   return id;
 }
 
-async function api(path, payload = {}) {
-  const body = tg && tg.initData ? { initData: tg.initData } : { user_id: getUserId() };
+async function webCall(path, payload) {
+  const body = tg && tg.initData ? { initData: tg.initData } : { user_id: getWebUserId() };
   Object.assign(body, payload);
   const resp = await fetch(path, {
     method: "POST",
@@ -29,6 +138,18 @@ async function api(path, payload = {}) {
     throw new Error(err.error || err.reason || resp.statusText);
   }
   return resp.json();
+}
+
+// Единая точка обращения к API для всех платформ.
+async function api(path, payload = {}) {
+  if (Platform.isVK) return VKMode.call(path, payload);
+  return webCall(path, payload);
+}
+
+// Сервер в VK-режиме всегда отвечает обёрткой {view, save, messages},
+// а веб-эндпоинт state/reset возвращает «голый» view — приводим к одному виду.
+function unwrap(data) {
+  return data.view ? data : { view: data, messages: [] };
 }
 
 const el = (id) => document.getElementById(id);
@@ -205,7 +326,7 @@ function render(view, messages = null) {
 }
 
 async function refresh() {
-  const view = await api("/api/state");
+  const { view } = unwrap(await api("/api/state"));
   render(view);
 }
 
@@ -222,15 +343,22 @@ async function useItem(itemId) {
 }
 
 async function watchAd() {
-  // В VK-сборке здесь сначала вызывается VK Bridge rewarded video,
-  // затем серверный эндпоинт начисляет награду (кулдаун проверяется там).
-  const data = await api("/api/ad/reward", {});
+  // В VK сначала показываем настоящий rewarded-ролик через Bridge:
+  // награду начисляет сервер только после успешного показа, кулдаун — там же.
+  if (Platform.isVK) {
+    const watched = await VKMode.showRewardedAd();
+    if (!watched) {
+      alert("Ролик сейчас недоступен. Силы восстановятся сами по таймеру.");
+      return;
+    }
+  }
+  const data = unwrap(await api("/api/ad/reward", {}));
   SoundFX.play("reward");
   render(data.view, data.messages);
 }
 
 async function reset() {
-  const view = await api("/api/reset");
+  const { view } = unwrap(await api("/api/reset"));
   render(view);
 }
 
@@ -266,6 +394,8 @@ document.addEventListener("click", async (event) => {
   } catch (err) {
     alert("Ошибка: " + err.message);
     await refresh();
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -337,9 +467,23 @@ document.querySelectorAll(".modal-overlay").forEach((overlay) =>
   })
 );
 
-refresh()
-  .then(showMenu)
-  .catch((err) => {
+// ---------------------------------------------------------------------------
+// Старт: инициализация платформы -> первая загрузка -> главное меню
+// ---------------------------------------------------------------------------
+
+async function bootstrap() {
+  try {
+    if (Platform.isVK) {
+      await VKMode.init();
+    } else if (Platform.isTG) {
+      await initTelegram();
+    }
+    await refresh();
+    showMenu();
+  } catch (err) {
     el("scene-title").textContent = "Не удалось загрузить игру";
-    el("scene-text").textContent = String(err);
-  });
+    el("scene-text").textContent = String(err.message || err);
+  }
+}
+
+bootstrap();
