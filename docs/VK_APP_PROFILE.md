@@ -57,8 +57,8 @@
 
 ## Дальнейшие разделы
 
-- Размещение: URL приложения после деплоя на Amvera
-  (`https://<проект>-clinchrus.amvera.io/`, см. docs/AMVERA_DEPLOY.md);
+- Размещение: боевой URL приложения
+  (`https://ptosnik-clinchrus.msk1.amvera.tech/`, см. docs/AMVERA_DEPLOY.md);
   российский хостинг — игра доступна без VPN.
 - Оформление: иконка web/static/img/icon.jpg (нужен PNG 512×512), обложка,
   скриншоты игровых экранов.
