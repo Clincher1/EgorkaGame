@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from . import engine
+from .censor import CENSOR_OFF, censor_text, censor_value
 from .content import ITEMS
 from .models import SKILLS, STAT_MAX, GameState
 
@@ -49,7 +50,7 @@ def inventory_lines(state: GameState) -> list[str]:
     return lines
 
 
-def render_view(state: GameState) -> dict:
+def render_view(state: GameState, censor_mode: str = CENSOR_OFF) -> dict:
     """Полное состояние для веб-клиента (JSON)."""
     scene = engine.get_scene(state)
     options = (
@@ -57,7 +58,7 @@ def render_view(state: GameState) -> dict:
         if not state.over
         else []
     )
-    return {
+    view = {
         "day": state.day,
         "over": state.over,
         "ending": state.ending,
@@ -89,21 +90,30 @@ def render_view(state: GameState) -> dict:
             for iid in state.inventory
         ],
         "flags": {"absurd_count": state.flag("absurd_count", 0)},
+        "exhausted": state.exhausted_until,
     }
+    # Цензура накладывается на все строки готового ответа одним проходом
+    return censor_value(view, censor_mode) if censor_mode != CENSOR_OFF else view
 
 
-def render_telegram(state: GameState, last_lines: list[str] | None = None) -> str:
+def render_telegram(
+    state: GameState,
+    last_lines: list[str] | None = None,
+    censor_mode: str = CENSOR_OFF,
+) -> str:
     """Текст сообщения для Telegram (HTML-разметка aiogram отключит экранирование)."""
     scene = engine.get_scene(state)
     parts = [
         f"<b>{scene.get('emoji', '📄')} {scene['title']}</b>  <i>(день {state.day})</i>",
         "",
-        scene["text"],
+        censor_text(scene["text"], censor_mode),
     ]
 
     if last_lines:
         parts.extend(["", "<b>Что произошло:</b>"])
-        parts.extend(f"• {line}" for line in last_lines)
+        parts.extend(
+            f"• {censor_text(line, censor_mode)}" for line in last_lines
+        )
 
     parts.extend(["", "—" * 18, *stats_lines(state)])
     parts.extend(["", "<b>Навыки:</b>", *skills_lines(state)])

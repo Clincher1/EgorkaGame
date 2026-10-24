@@ -26,7 +26,7 @@ async function api(path, payload = {}) {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.reason || resp.statusText);
+    throw new Error(err.error || err.reason || resp.statusText);
   }
   return resp.json();
 }
@@ -165,6 +165,8 @@ function renderScene(view, messages) {
     options.appendChild(btn);
   }
 
+  renderAdBanner(view);
+
   const overlay = el("ending-overlay");
   if (view.over) {
     el("ending-emoji").textContent = view.scene.emoji;
@@ -190,17 +192,44 @@ async function refresh() {
 
 async function choose(index) {
   const data = await api("/api/choose", { option_index: index });
+  SoundFX.play(soundForMessages(data.messages, data.view));
   render(data.view, data.messages);
 }
 
 async function useItem(itemId) {
   const data = await api("/api/use", { item_id: itemId });
+  SoundFX.play(soundForMessages(data.messages, data.view));
+  render(data.view, data.messages);
+}
+
+async function watchAd() {
+  // В VK-сборке здесь сначала вызывается VK Bridge rewarded video,
+  // затем серверный эндпоинт начисляет награду (кулдаун проверяется там).
+  const data = await api("/api/ad/reward", {});
+  SoundFX.play("reward");
   render(data.view, data.messages);
 }
 
 async function reset() {
   const view = await api("/api/reset");
   render(view);
+}
+
+function renderAdBanner(view) {
+  let banner = el("ad-banner");
+  if (!view.over && view.exhausted) {
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "ad-banner";
+      banner.className = "ad-banner";
+      banner.innerHTML =
+        '<button class="btn-ad" data-action="ad">📺 Посмотреть ролик — вернуться сразу</button>';
+      el("options").before(banner);
+    }
+    banner.hidden = false;
+  } else if (banner) {
+    banner.hidden = true;
+  }
 }
 
 document.addEventListener("click", async (event) => {
@@ -212,6 +241,8 @@ document.addEventListener("click", async (event) => {
       await choose(Number(btn.dataset.index));
     } else if (btn.dataset.action === "use") {
       await useItem(btn.dataset.item);
+    } else if (btn.dataset.action === "ad") {
+      await watchAd();
     }
   } catch (err) {
     alert("Ошибка: " + err.message);
@@ -229,6 +260,12 @@ el("reset-btn").addEventListener("click", async () => {
   }
 });
 el("ending-restart").addEventListener("click", reset);
+
+el("mute-btn").addEventListener("click", () => {
+  const muted = SoundFX.toggle();
+  el("mute-btn").textContent = muted ? "🔇" : "🔊";
+});
+if (SoundFX.isMuted()) el("mute-btn").textContent = "🔇";
 
 refresh().catch((err) => {
   el("scene-title").textContent = "Не удалось загрузить игру";
