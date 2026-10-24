@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ПТОшник Егор: Битва за Участок</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="crt">
+    <header class="topbar">
+      <h1>🏗️ ПТОшник Егор</h1>
+      <div class="topbar-right">
+        <span class="day-badge" id="day-badge">день 1</span>
+        <button class="btn-ghost" id="reset-btn" title="Начать заново">🔄</button>
+      </div>
+    </header>
+
+    <section class="panel stats-panel" id="stats-panel"><!-- рендер из JS --></section>
+
+    <section class="panel scene-panel">
+      <div class="scene-head">
+        <span class="scene-emoji" id="scene-emoji">📄</span>
+        <h2 id="scene-title">Загрузка...</h2>
+      </div>
+      <p class="scene-text" id="scene-text"></p>
+      <div class="messages" id="messages" hidden></div>
+      <div class="options" id="options"></div>
+    </section>
+
+    <div class="side-grid">
+      <section class="panel">
+        <h3>⭐ Навыки</h3>
+        <ul class="skills" id="skills"></ul>
+      </section>
+      <section class="panel">
+        <h3>🎒 Инвентарь</h3>
+        <ul class="inventory" id="inventory"></ul>
+      </section>
+    </div>
+
+    <footer>
+      «ПТОшник Егор: Битва за Участок» · текстовый RPG-симулятор ·
+      энергия или настроение до нуля = конец игры
+    </footer>
+  </div>
+
+  <div class="ending-overlay" id="ending-overlay" hidden>
+    <div class="ending-card">
+      <div class="ending-emoji" id="ending-emoji">🎬</div>
+      <h2 id="ending-title"></h2>
+      <p id="ending-text"></p>
+      <button class="btn-primary" id="ending-restart">🔄 Начать новую игру</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

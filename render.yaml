@@ -1,0 +1,21 @@
+# Деплой на Render.com (бесплатный тариф Web Service).
+# В дашборде: New + → Blueprint → выбрать этот файл из репозитория.
+services:
+  - type: web
+    name: egor-pto-game
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: BOT_TOKEN
+        sync: false          # вписать токен BotFather в дашборде
+      - key: BOT_MODE
+        value: webhook
+      - key: WEBHOOK_URL
+        sync: false          # https://<имя-сервиса>.onrender.com
+      - key: WEBAPP_URL
+        sync: false          # тот же адрес
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
