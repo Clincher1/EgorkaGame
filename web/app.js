@@ -63,23 +63,19 @@ const VKMode = (() => {
   }
 
   async function showRewardedAd() {
-    // Актуальный метод: нативная rewarded-реклама с водопадом заглушек.
+    // Нативная rewarded-реклама VK с водопадом заглушек.
+    // Метод доступен в VK Bridge 3.x; более старый ShowRewardVideo из API убран.
     try {
       const res = await bridge.send("VKWebAppShowNativeAds", {
         ad_format: "reward",
         use_waterfall: true,
       });
-      if (res.result === true) return true;
+      return res.result === true;
     } catch (_err) {
-      // Старый метод оставлен как запасной для старых клиентов VK.
-      try {
-        const legacy = await bridge.send("VKWebAppShowRewardVideo");
-        if (legacy.result === true) return true;
-      } catch (_err2) {
-        /* упадём в общую ветку «ролик недоступен» */
-      }
+      // Рекламный кабинет ещё не подключён или нет заполнения — мягко говорим
+      // игроку, что силы восстановятся сами по таймеру (без блокировки геймплея).
+      return false;
     }
-    return false;
   }
 
   return { init, call, showRewardedAd };

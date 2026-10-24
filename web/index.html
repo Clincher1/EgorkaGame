@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>ПТОшник против Системы</title>
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.min.js"></script>
+  <!-- VK Bridge лежит локально: внешние CDN (unpkg и т.п.) могут быть
+       недоступны пользователям из РФ — рекомендация самой документации VK. -->
+  <script src="/static/vendor/vk-bridge.min.js"></script>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>

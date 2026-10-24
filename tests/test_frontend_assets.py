@@ -12,11 +12,27 @@ SOUND_JS = (WEB / "sound.js").read_text(encoding="utf-8")
 
 
 def test_index_loads_vk_bridge_and_not_telegram_script():
-    # VK Bridge подключён официальным CDN-пакетом.
-    assert "@vkontakte/vk-bridge" in INDEX_HTML
+    # VK Bridge подключён локальной копией (внешние CDN могут быть
+    # недоступны пользователям из РФ — предупреждение самой документации VK).
+    assert "/static/vendor/vk-bridge.min.js" in INDEX_HTML
+    vendor = WEB / "vendor" / "vk-bridge.min.js"
+    assert vendor.is_file() and vendor.stat().st_size > 1000
+    vendor_text = vendor.read_text(encoding="utf-8")
+    assert "vkBridge" in vendor_text
+    assert "VKWebAppInit" in vendor_text
+    assert "VKWebAppShowNativeAds" in vendor_text
+    # Лицензия MIT приложена рядом с вендорной копией.
+    assert (WEB / "vendor" / "vk-bridge.LICENSE").is_file()
     # Никаких скриптов чужих платформ в странице, которая отдаётся игрокам.
     assert "telegram.org" not in INDEX_HTML
     assert "telegram-web-app" not in INDEX_HTML
+
+
+def test_index_has_no_external_resources():
+    # Все скрипты/стили/картинки должны грузиться с того же origin:
+    # ни одного внешнего http(s)-ресурса в выдаваемой странице.
+    external = re.findall(r"(?:src|href)\s*=\s*[\"']https?://[^\"']+", INDEX_HTML)
+    assert external == [], external
 
 
 def test_app_js_implements_vk_storage_and_rewarded_ads():
