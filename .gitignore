@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Виртуальное окружение
+.venv/
+venv/
+
+# Сохранения игры (локальное JSON-хранилище)
+saves/
+
+# Окружение
+.env
+*.local
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
