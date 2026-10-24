@@ -53,6 +53,15 @@ async def main() -> None:
     site = web.TCPSite(runner, config.web_host, config.web_port)
     await site.start()
     logger.info("Веб-сервер поднят на http://%s:%s", config.web_host, config.web_port)
+    if config.vk_app_id:
+        logger.info(
+            "VK Mini App: app_id=%s, защищённый ключ задан=%s (длина %s)",
+            config.vk_app_id,
+            bool(config.vk_secret),
+            len(config.vk_secret) if config.vk_secret else 0,
+        )
+    else:
+        logger.info("VK Mini App: VK_APP_ID не задан — VK-авторизация отключена")
 
     polling_task: asyncio.Task | None = None
     if bot is not None and dp is not None:
