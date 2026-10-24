@@ -314,6 +314,7 @@ def create_app(config: Config, storage: Storage, bot=None, dp=None) -> web.Appli
     app.router.add_static(
         "/sounds", WEB_DIR / "static" / "sounds", name="sounds"
     )
+    app.router.add_static("/img", WEB_DIR / "static" / "img", name="img")
 
     async def index(_request: web.Request) -> web.FileResponse:
         return web.FileResponse(WEB_DIR / "index.html")

@@ -130,7 +130,26 @@ function renderMessages(messages) {
   }
 }
 
+function renderArt(view) {
+  const bg = el("scene-bg");
+  if (view.art?.background) {
+    bg.src = view.art.background;
+    bg.parentElement.hidden = false;
+  } else {
+    bg.parentElement.hidden = true;
+  }
+  const portrait = el("scene-portrait");
+  if (view.art?.portrait) {
+    portrait.src = view.art.portrait;
+    portrait.hidden = false;
+  } else {
+    portrait.hidden = true;
+    portrait.removeAttribute("src");
+  }
+}
+
 function renderScene(view, messages) {
+  renderArt(view);
   el("scene-emoji").textContent = view.scene.emoji;
   el("scene-title").textContent = view.scene.title;
   el("scene-text").textContent = view.scene.text;
@@ -267,7 +286,60 @@ el("mute-btn").addEventListener("click", () => {
 });
 if (SoundFX.isMuted()) el("mute-btn").textContent = "🔇";
 
-refresh().catch((err) => {
-  el("scene-title").textContent = "Не удалось загрузить игру";
-  el("scene-text").textContent = String(err);
+// ---------------------------------------------------------------------------
+// Меню и модалки
+// ---------------------------------------------------------------------------
+
+function showMenu() {
+  el("main-menu").hidden = false;
+}
+function hideMenu() {
+  el("main-menu").hidden = true;
+}
+function openModal(id) {
+  el(id).hidden = false;
+}
+function closeModals() {
+  document.querySelectorAll(".modal-overlay").forEach((m) => (m.hidden = true));
+}
+
+el("menu-btn").addEventListener("click", showMenu);
+el("btn-continue").addEventListener("click", () => {
+  SoundFX.play("click");
+  hideMenu();
 });
+el("btn-new").addEventListener("click", async () => {
+  SoundFX.play("click");
+  await reset();
+  hideMenu();
+});
+el("btn-rules").addEventListener("click", () => {
+  SoundFX.play("click");
+  openModal("rules-modal");
+});
+el("btn-policy").addEventListener("click", () => {
+  SoundFX.play("click");
+  openModal("privacy-modal");
+});
+el("footer-policy").addEventListener("click", (e) => {
+  e.preventDefault();
+  openModal("privacy-modal");
+});
+document.querySelectorAll(".modal-close").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    SoundFX.play("click");
+    closeModals();
+  })
+);
+document.querySelectorAll(".modal-overlay").forEach((overlay) =>
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeModals();
+  })
+);
+
+refresh()
+  .then(showMenu)
+  .catch((err) => {
+    el("scene-title").textContent = "Не удалось загрузить игру";
+    el("scene-text").textContent = String(err);
+  });

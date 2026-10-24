@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from . import engine
+from . import content, engine
 from .censor import CENSOR_OFF, censor_text, censor_value
 from .content import ITEMS
 from .models import SKILLS, STAT_MAX, GameState
@@ -91,6 +91,17 @@ def render_view(state: GameState, censor_mode: str = CENSOR_OFF) -> dict:
         ],
         "flags": {"absurd_count": state.flag("absurd_count", 0)},
         "exhausted": state.exhausted_until,
+        "art": {
+            "background": "/img/"
+            + content.SCENE_BACKGROUNDS.get(
+                state.scene_id, content.DEFAULT_BACKGROUND
+            ),
+            "portrait": (
+                "/img/" + content.SCENE_PORTRAITS[state.scene_id]
+                if state.scene_id in content.SCENE_PORTRAITS
+                else None
+            ),
+        },
     }
     # Цензура накладывается на все строки готового ответа одним проходом
     return censor_value(view, censor_mode) if censor_mode != CENSOR_OFF else view

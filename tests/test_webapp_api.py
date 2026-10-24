@@ -119,3 +119,22 @@ def test_render_exposes_exhausted_timestamp():
     state.exhausted_until = 1_000_900
     view = render.render_view(state, "off")
     assert view["exhausted"] == 1_000_900
+
+
+def test_render_includes_art_mapping():
+    state = engine.new_game("art")
+    engine.choose(state, 0)  # intro -> day1_act
+    view = render.render_view(state, "off")
+    assert view["art"]["background"].endswith("office.jpg")
+    assert view["art"]["portrait"].endswith("petrovich.jpg")
+
+    # у геологов свой фон-тайга
+    state.scene_id = "day8_geologists"
+    view = render.render_view(state, "off")
+    assert view["art"]["background"].endswith("taiga.jpg")
+
+    # случайная сцена без явного портрета
+    state.scene_id = "r_coffee"
+    view = render.render_view(state, "off")
+    assert view["art"]["portrait"] is None
+    assert view["art"]["background"].endswith("office.jpg")
