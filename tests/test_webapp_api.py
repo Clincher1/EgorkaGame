@@ -138,3 +138,25 @@ def test_render_includes_art_mapping():
     view = render.render_view(state, "off")
     assert view["art"]["portrait"] is None
     assert view["art"]["background"].endswith("office.jpg")
+
+
+def test_app_shell_assets_have_no_cache_headers():
+    # HTML и критичные JS/CSS не должны залипать в кэше WebView:
+    # залипший старый стиль ломал кнопки в VK после деплоя.
+    with tempfile.TemporaryDirectory() as tmp:
+        async def scenario():
+            client = await _client(tmp)
+            try:
+                for path in ("/", "/static/style.css", "/static/app.js"):
+                    resp = await client.get(path)
+                    assert resp.status == 200
+                    assert "no-cache" in resp.headers.get("Cache-Control", "")
+
+                # картинки и звук можно кэшировать — тяжёлый статический контент
+                resp = await client.get("/img/office.jpg")
+                assert resp.status == 200
+                assert "no-cache" not in resp.headers.get("Cache-Control", "")
+            finally:
+                await client.close()
+
+        _run(scenario())

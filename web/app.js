@@ -133,6 +133,14 @@ function unwrap(data) {
 
 const el = (id) => document.getElementById(id);
 
+// Видимость оверлеев: атрибут hidden + инлайн-стиль. Инлайн display:none
+// побеждает display:flex из старого CSS даже если у клиента закэширована
+// прошлая версия style.css (страховка от залипания модалок).
+function setHidden(node, hidden) {
+  node.hidden = hidden;
+  node.style.display = hidden ? "none" : "";
+}
+
 function bar(label, value, cls, suffix = "") {
   const row = document.createElement("div");
   row.className = "stat-row";
@@ -291,9 +299,9 @@ function renderScene(view, messages) {
     el("ending-emoji").textContent = view.scene.emoji;
     el("ending-title").textContent = view.scene.title;
     el("ending-text").textContent = view.scene.text;
-    overlay.hidden = false;
+    setHidden(overlay, false);
   } else {
-    overlay.hidden = true;
+    setHidden(overlay, true);
   }
 }
 
@@ -400,16 +408,16 @@ if (SoundFX.isMuted()) el("mute-btn").textContent = "🔇";
 // ---------------------------------------------------------------------------
 
 function showMenu() {
-  el("main-menu").hidden = false;
+  setHidden(el("main-menu"), false);
 }
 function hideMenu() {
-  el("main-menu").hidden = true;
+  setHidden(el("main-menu"), true);
 }
 function openModal(id) {
-  el(id).hidden = false;
+  setHidden(el(id), false);
 }
 function closeModals() {
-  document.querySelectorAll(".modal-overlay").forEach((m) => (m.hidden = true));
+  document.querySelectorAll(".modal-overlay").forEach((m) => setHidden(m, true));
 }
 
 el("menu-btn").addEventListener("click", showMenu);
@@ -452,6 +460,9 @@ document.querySelectorAll(".modal-overlay").forEach((overlay) =>
 
 async function bootstrap() {
   try {
+    // Гасим возможные залипшие оверлеи до любой сетевой логики.
+    closeModals();
+    setHidden(el("ending-overlay"), true);
     if (Platform.isVK) {
       await VKMode.init();
     }

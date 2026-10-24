@@ -104,3 +104,17 @@ def test_modal_close_handlers_present_in_js():
     assert "querySelectorAll(\".modal-close\")" in APP_JS
     assert "querySelectorAll(\".modal-overlay\")" in APP_JS
     assert "closeModals" in APP_JS
+
+
+def test_overlay_visibility_uses_inline_style_guard():
+    # Инлайн display:none не зависит от закэшированного CSS.
+    assert "function setHidden" in APP_JS
+    assert 'node.style.display = hidden ? "none" : ""' in APP_JS
+    # bootstrap обязан гасить модалки до сетевой логики
+    assert "closeModals();" in APP_JS
+
+
+def test_assets_are_versioned_for_cache_busting():
+    # Версия в query-строке заставляет WebView скачать свежие файлы.
+    for asset in ("style.css", "app.js", "sound.js", "vk-bridge.min.js"):
+        assert re.search(rf'"?{re.escape(asset)}\?v=\d+[a-z]?', INDEX_HTML), asset

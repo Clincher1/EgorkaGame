@@ -289,8 +289,22 @@ async def json_errors(request: web.Request, handler):
         raise
 
 
+# Типы, которые обязаны обновляться сразу после деплоя: залипший в кэше
+# WebView старый CSS/JS уже приводил к неработающим кнопкам в VK.
+_NO_CACHE_SUFFIXES = (".js", ".css", ".html")
+
+
+@web.middleware
+async def no_cache_app_shell(request: web.Request, handler):
+    response = await handler(request)
+    path = request.path
+    if path == "/" or any(path.endswith(suffix) for suffix in _NO_CACHE_SUFFIXES):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
 def create_app(config: Config, storage: Storage, bot=None, dp=None) -> web.Application:
-    app = web.Application(middlewares=[json_errors])
+    app = web.Application(middlewares=[json_errors, no_cache_app_shell])
     app["config"] = config
     app["storage"] = storage
     app["bot"] = bot
