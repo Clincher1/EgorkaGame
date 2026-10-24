@@ -81,3 +81,26 @@ def test_branding_matches_registered_vk_name():
     assert "ПТОшник против Системы" in INDEX_HTML
     # Старое рабочее название не должно оставаться в витринных текстах.
     assert "Битва за Участок" not in INDEX_HTML
+
+
+def test_css_hidden_attribute_overrides_flex_overlays():
+    # display:flex у .menu-overlay/.modal-overlay/.ending-overlay перебивал
+    # браузерное [hidden]{display:none}: модалки висели поверх игры и не
+    # закрывались. Правило с !important возвращает атрибуту hidden силу.
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"\[hidden\]\s*\{\s*display:\s*none\s*!important", css)
+
+
+def test_all_overlays_start_hidden_in_html():
+    # Каждый полноэкранный оверлей должен быть скрыт атрибутом при загрузке,
+    # иначе до фикса CSS он виден поверх игры (приватная модалка всплывала
+    # самой первой, т.к. стоит последней в DOM).
+    for tag in re.findall(r"<div[^>]*class=\"[^\"]*(?:menu-overlay|modal-overlay|ending-overlay)[^\"]*\"[^>]*>", INDEX_HTML):
+        assert "hidden" in tag, tag
+
+
+def test_modal_close_handlers_present_in_js():
+    # Подстраховка со стороны логики: обработчик закрытия и привязка к кнопкам.
+    assert "querySelectorAll(\".modal-close\")" in APP_JS
+    assert "querySelectorAll(\".modal-overlay\")" in APP_JS
+    assert "closeModals" in APP_JS
