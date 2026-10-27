@@ -15,6 +15,11 @@
 
 * { box-sizing: border-box; }
 
+/* Атрибут hidden обязан скрывать элемент даже когда класс задаёт
+   display: flex (оверлеи меню/модалок/концовки), иначе авторское
+   правило перебивает браузерное [hidden] { display: none }. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -181,6 +186,31 @@ body::before {
 }
 .btn-primary:hover { filter: brightness(1.08); }
 
+/* ---- rewarded-реклама ---- */
+.ad-banner {
+  margin: 12px 0 4px;
+  text-align: center;
+}
+.btn-ad {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: bold;
+  width: 100%;
+  color: #1a1206;
+  background: linear-gradient(90deg, var(--amber), #ffe9b0);
+  border: none;
+  border-radius: 6px;
+  padding: 12px 14px;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 207, 107, 0.3);
+  animation: ad-pulse 2s ease-in-out infinite;
+}
+.btn-ad:hover { filter: brightness(1.05); }
+@keyframes ad-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 207, 107, 0.25); }
+  50% { box-shadow: 0 0 22px rgba(255, 207, 107, 0.55); }
+}
+
 .btn-ghost {
   font-family: inherit;
   background: var(--panel-2);
@@ -267,3 +297,147 @@ footer {
   .stat-row { grid-template-columns: 100px 1fr 40px; }
   .topbar h1 { font-size: 1.05rem; }
 }
+
+/* ===== арт сцены ===== */
+.scene-art {
+  position: relative;
+  height: 170px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.scene-art img#scene-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+  animation: art-fade 0.5s ease;
+}
+@keyframes art-fade {
+  from { opacity: 0.35; transform: scale(1.03); }
+  to { opacity: 1; transform: scale(1); }
+}
+.scene-art-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(8, 12, 9, 0.88) 0%, rgba(8, 12, 9, 0.15) 55%, rgba(8, 12, 9, 0.35) 100%);
+}
+.scene-portrait {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  height: 132px;
+  border: 2px solid var(--green-dim);
+  border-radius: 6px;
+  box-shadow: 0 0 18px rgba(125, 255, 138, 0.25);
+  image-rendering: pixelated;
+  background: #0b0f0c;
+}
+
+/* ===== главное меню ===== */
+.menu-overlay, .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 4, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 60;
+  backdrop-filter: blur(3px);
+}
+.menu-card {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--green-dim);
+  box-shadow: 0 0 50px rgba(125, 255, 138, 0.2);
+}
+.menu-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+.menu-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(5, 9, 6, 0.95) 20%, rgba(5, 9, 6, 0.55) 70%);
+}
+.menu-content {
+  position: relative;
+  padding: 48px 24px 32px;
+  text-align: center;
+}
+.menu-logo { font-size: 3.4rem; animation: float 3s ease-in-out infinite; }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.menu-title {
+  margin: 8px 0 0;
+  font-size: 2rem;
+  color: var(--green);
+  text-shadow: 0 0 18px rgba(125, 255, 138, 0.6);
+  letter-spacing: 2px;
+}
+.menu-subtitle {
+  color: var(--amber);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  margin: 6px 0 28px;
+}
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 340px;
+  margin: 0 auto;
+}
+.btn-menu {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: rgba(15, 23, 18, 0.92);
+  border: 1px solid var(--green-dim);
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+}
+.btn-menu:hover {
+  border-color: var(--green);
+  background: #16241b;
+}
+
+/* ===== модалки ===== */
+.modal-card {
+  background: var(--panel);
+  border: 1px solid var(--green-dim);
+  border-radius: 10px;
+  padding: 22px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+}
+.modal-card h2 {
+  margin: 0 0 12px;
+  color: var(--amber);
+}
+.modal-body {
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+.modal-body ul { padding-left: 18px; }
+.modal-body li { margin-bottom: 8px; }
+.modal-card .btn-primary { width: 100%; margin-top: 16px; }
+
+footer a { color: var(--green-dim); }

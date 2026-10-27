@@ -1,13 +1,101 @@
-/* «ПТОшник Егор» — фронтенд без сборки: ванильный JS + fetch. */
+/* «ПТОшник против Системы» — фронтенд без сборки: ванильный JS + fetch.
+ *
+ * Два режима, платформа определяется автоматически по параметрам запуска:
+ *   1. VK Mini App — vk_app_id + sign в URL: VK Bridge, сохранения в VK Storage;
+ *   2. Обычный браузер (по умолчанию) — анонимный id в localStorage, удобно
+ *      для локальной разработки и проверки в браузере.
+ */
 "use strict";
 
-const tg = window.Telegram?.WebApp ?? null;
-if (tg) {
-  tg.ready();
-  tg.expand();
-}
+// ---------------------------------------------------------------------------
+// Определение платформы
+// ---------------------------------------------------------------------------
 
-function getUserId() {
+const urlParams = new URLSearchParams(window.location.search);
+const Platform = {
+  isVK: urlParams.has("vk_app_id") && urlParams.has("sign"),
+};
+
+// ---------------------------------------------------------------------------
+// VK Mini App: Bridge + VK Storage, состояние гоняем через сервер в каждом запросе
+// ---------------------------------------------------------------------------
+
+const VKMode = (() => {
+  if (!Platform.isVK) return null;
+
+  const bridge = window.vkBridge;
+  const launch = Object.fromEntries(urlParams.entries());
+  const STORAGE_KEY = "pto_save_v1";
+  let save = "";
+
+  const PATHS = {
+    "/api/state": "/api/vk/state",
+    "/api/choose": "/api/vk/choose",
+    "/api/use": "/api/vk/use",
+    "/api/reset": "/api/vk/reset",
+    "/api/ad/reward": "/api/vk/ad",
+  };
+
+  async function init() {
+    if (!bridge) throw new Error("VK Bridge не загрузился");
+    await bridge.send("VKWebAppInit");
+    const res = await bridge.send("VKWebAppStorageGet", { keys: [STORAGE_KEY] });
+    const found = (res.keys || []).find((k) => k.key === STORAGE_KEY);
+    save = found?.value || "";
+  }
+
+  async function persist(nextSave) {
+    if (!nextSave || nextSave === save) return;
+    save = nextSave;
+    await bridge.send("VKWebAppStorageSet", { key: STORAGE_KEY, value: save });
+  }
+
+  async function call(path, payload) {
+    const resp = await fetch(PATHS[path] || path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ launch, save, ...payload }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || data.reason || resp.statusText);
+    await persist(data.save);
+    return data;
+  }
+
+  async function showRewardedAd() {
+    // По документации VK для рекламы за вознаграждение сначала проверяем
+    // наличие рекламного материала (заодно это предзагрузка без задержки).
+    try {
+      const check = await bridge.send("VKWebAppCheckNativeAds", {
+        ad_format: "reward",
+        use_waterfall: true,
+      });
+      if (check && check.result === false) return false; // заполнения нет
+    } catch (_err) {
+      // Старый клиент без метода проверки — пробуем показать напрямую.
+    }
+    // Нативная rewarded-реклама VK с водопадом заглушек.
+    try {
+      const res = await bridge.send("VKWebAppShowNativeAds", {
+        ad_format: "reward",
+        use_waterfall: true,
+      });
+      return res.result === true;
+    } catch (_err) {
+      // Рекламный кабинет ещё не подключён или нет заполнения — мягко говорим
+      // игроку, что силы восстановятся сами по таймеру (без блокировки геймплея).
+      return false;
+    }
+  }
+
+  return { init, call, showRewardedAd };
+})();
+
+// ---------------------------------------------------------------------------
+// Веб-режим: анонимный идентификатор в localStorage (локальная разработка)
+// ---------------------------------------------------------------------------
+
+function getWebUserId() {
   let id = localStorage.getItem("egor_user_id");
   if (!id) {
     id = "web-" + crypto.randomUUID();
@@ -16,8 +104,8 @@ function getUserId() {
   return id;
 }
 
-async function api(path, payload = {}) {
-  const body = tg && tg.initData ? { initData: tg.initData } : { user_id: getUserId() };
+async function webCall(path, payload) {
+  const body = { user_id: getWebUserId() };
   Object.assign(body, payload);
   const resp = await fetch(path, {
     method: "POST",
@@ -26,12 +114,32 @@ async function api(path, payload = {}) {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.reason || resp.statusText);
+    throw new Error(err.error || err.reason || resp.statusText);
   }
   return resp.json();
 }
 
+// Единая точка обращения к API для всех платформ.
+async function api(path, payload = {}) {
+  if (Platform.isVK) return VKMode.call(path, payload);
+  return webCall(path, payload);
+}
+
+// Сервер в VK-режиме всегда отвечает обёрткой {view, save, messages},
+// а веб-эндпоинт state/reset возвращает «голый» view — приводим к одному виду.
+function unwrap(data) {
+  return data.view ? data : { view: data, messages: [] };
+}
+
 const el = (id) => document.getElementById(id);
+
+// Видимость оверлеев: атрибут hidden + инлайн-стиль. Инлайн display:none
+// побеждает display:flex из старого CSS даже если у клиента закэширована
+// прошлая версия style.css (страховка от залипания модалок).
+function setHidden(node, hidden) {
+  node.hidden = hidden;
+  node.style.display = hidden ? "none" : "";
+}
 
 function bar(label, value, cls, suffix = "") {
   const row = document.createElement("div");
@@ -130,7 +238,26 @@ function renderMessages(messages) {
   }
 }
 
+function renderArt(view) {
+  const bg = el("scene-bg");
+  if (view.art?.background) {
+    bg.src = view.art.background;
+    bg.parentElement.hidden = false;
+  } else {
+    bg.parentElement.hidden = true;
+  }
+  const portrait = el("scene-portrait");
+  if (view.art?.portrait) {
+    portrait.src = view.art.portrait;
+    portrait.hidden = false;
+  } else {
+    portrait.hidden = true;
+    portrait.removeAttribute("src");
+  }
+}
+
 function renderScene(view, messages) {
+  renderArt(view);
   el("scene-emoji").textContent = view.scene.emoji;
   el("scene-title").textContent = view.scene.title;
   el("scene-text").textContent = view.scene.text;
@@ -165,14 +292,16 @@ function renderScene(view, messages) {
     options.appendChild(btn);
   }
 
+  renderAdBanner(view);
+
   const overlay = el("ending-overlay");
   if (view.over) {
     el("ending-emoji").textContent = view.scene.emoji;
     el("ending-title").textContent = view.scene.title;
     el("ending-text").textContent = view.scene.text;
-    overlay.hidden = false;
+    setHidden(overlay, false);
   } else {
-    overlay.hidden = true;
+    setHidden(overlay, true);
   }
 }
 
@@ -184,23 +313,57 @@ function render(view, messages = null) {
 }
 
 async function refresh() {
-  const view = await api("/api/state");
+  const { view } = unwrap(await api("/api/state"));
   render(view);
 }
 
 async function choose(index) {
   const data = await api("/api/choose", { option_index: index });
+  SoundFX.play(soundForMessages(data.messages, data.view));
   render(data.view, data.messages);
 }
 
 async function useItem(itemId) {
   const data = await api("/api/use", { item_id: itemId });
+  SoundFX.play(soundForMessages(data.messages, data.view));
+  render(data.view, data.messages);
+}
+
+async function watchAd() {
+  // В VK сначала показываем настоящий rewarded-ролик через Bridge:
+  // награду начисляет сервер только после успешного показа, кулдаун — там же.
+  if (Platform.isVK) {
+    const watched = await VKMode.showRewardedAd();
+    if (!watched) {
+      alert("Ролик сейчас недоступен. Силы восстановятся сами по таймеру.");
+      return;
+    }
+  }
+  const data = unwrap(await api("/api/ad/reward", {}));
+  SoundFX.play("reward");
   render(data.view, data.messages);
 }
 
 async function reset() {
-  const view = await api("/api/reset");
+  const { view } = unwrap(await api("/api/reset"));
   render(view);
+}
+
+function renderAdBanner(view) {
+  let banner = el("ad-banner");
+  if (!view.over && view.exhausted) {
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "ad-banner";
+      banner.className = "ad-banner";
+      banner.innerHTML =
+        '<button class="btn-ad" data-action="ad">📺 Посмотреть ролик — вернуться сразу</button>';
+      el("options").before(banner);
+    }
+    banner.hidden = false;
+  } else if (banner) {
+    banner.hidden = true;
+  }
 }
 
 document.addEventListener("click", async (event) => {
@@ -212,10 +375,14 @@ document.addEventListener("click", async (event) => {
       await choose(Number(btn.dataset.index));
     } else if (btn.dataset.action === "use") {
       await useItem(btn.dataset.item);
+    } else if (btn.dataset.action === "ad") {
+      await watchAd();
     }
   } catch (err) {
     alert("Ошибка: " + err.message);
     await refresh();
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -230,7 +397,88 @@ el("reset-btn").addEventListener("click", async () => {
 });
 el("ending-restart").addEventListener("click", reset);
 
-refresh().catch((err) => {
-  el("scene-title").textContent = "Не удалось загрузить игру";
-  el("scene-text").textContent = String(err);
+el("mute-btn").addEventListener("click", () => {
+  const muted = SoundFX.toggle();
+  el("mute-btn").textContent = muted ? "🔇" : "🔊";
 });
+if (SoundFX.isMuted()) el("mute-btn").textContent = "🔇";
+
+// ---------------------------------------------------------------------------
+// Меню и модалки
+// ---------------------------------------------------------------------------
+
+function showMenu() {
+  setHidden(el("main-menu"), false);
+}
+function hideMenu() {
+  setHidden(el("main-menu"), true);
+}
+function openModal(id) {
+  setHidden(el(id), false);
+}
+function closeModals() {
+  document.querySelectorAll(".modal-overlay").forEach((m) => setHidden(m, true));
+}
+
+el("menu-btn").addEventListener("click", showMenu);
+el("btn-continue").addEventListener("click", () => {
+  SoundFX.play("click");
+  hideMenu();
+});
+el("btn-new").addEventListener("click", async () => {
+  SoundFX.play("click");
+  await reset();
+  hideMenu();
+});
+el("btn-rules").addEventListener("click", () => {
+  SoundFX.play("click");
+  openModal("rules-modal");
+});
+el("btn-policy").addEventListener("click", () => {
+  SoundFX.play("click");
+  openModal("privacy-modal");
+});
+el("footer-policy").addEventListener("click", (e) => {
+  e.preventDefault();
+  openModal("privacy-modal");
+});
+document.querySelectorAll(".modal-close").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    SoundFX.play("click");
+    closeModals();
+  })
+);
+document.querySelectorAll(".modal-overlay").forEach((overlay) =>
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeModals();
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Старт: инициализация платформы -> первая загрузка -> главное меню
+// ---------------------------------------------------------------------------
+
+async function bootstrap() {
+  try {
+    // Гасим возможные залипшие оверлеи до любой сетевой логики.
+    closeModals();
+    setHidden(el("ending-overlay"), true);
+    if (Platform.isVK) {
+      await VKMode.init();
+    }
+    await refresh();
+    showMenu();
+  } catch (err) {
+    closeModals();
+    setHidden(el("main-menu"), true);
+    setHidden(el("ending-overlay"), true);
+    el("scene-title").textContent = "Не удалось загрузить игру";
+    const hint = Platform.isVK
+      ? " Ошибка проверки параметров запуска ВКонтакте — сообщи разработчику, " +
+        "он увидит причину в логах сервера."
+      : "";
+    el("scene-text").textContent = String(err.message || err) + hint;
+  }
+}
+
+bootstrap();

@@ -3,16 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>ПТОшник Егор: Битва за Участок</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/static/style.css" />
+  <title>ПТОшник против Системы</title>
+  <!-- VK Bridge лежит локально: внешние CDN (unpkg и т.п.) могут быть
+       недоступны пользователям из РФ — рекомендация самой документации VK. -->
+  <script src="/static/vendor/vk-bridge.min.js?v=20261024b"></script>
+  <link rel="stylesheet" href="/static/style.css?v=20261024b" />
 </head>
 <body>
   <div class="crt">
     <header class="topbar">
-      <h1>🏗️ ПТОшник Егор</h1>
+      <h1>🏗️ ПТОшник</h1>
       <div class="topbar-right">
         <span class="day-badge" id="day-badge">день 1</span>
+        <button class="btn-ghost" id="menu-btn" title="Меню">☰</button>
+        <button class="btn-ghost" id="mute-btn" title="Звук">🔊</button>
         <button class="btn-ghost" id="reset-btn" title="Начать заново">🔄</button>
       </div>
     </header>
@@ -20,6 +24,11 @@
     <section class="panel stats-panel" id="stats-panel"><!-- рендер из JS --></section>
 
     <section class="panel scene-panel">
+      <div class="scene-art">
+        <img id="scene-bg" alt="" />
+        <div class="scene-art-shade"></div>
+        <img id="scene-portrait" class="scene-portrait" alt="" hidden />
+      </div>
       <div class="scene-head">
         <span class="scene-emoji" id="scene-emoji">📄</span>
         <h2 id="scene-title">Загрузка...</h2>
@@ -41,11 +50,74 @@
     </div>
 
     <footer>
-      «ПТОшник Егор: Битва за Участок» · текстовый RPG-симулятор ·
-      энергия или настроение до нуля = конец игры
+      «ПТОшник против Системы» · текстовый RPG-симулятор ·
+      <a href="#" id="footer-policy">Политика конфиденциальности</a>
     </footer>
   </div>
 
+  <!-- Главное меню -->
+  <div class="menu-overlay" id="main-menu" hidden>
+    <div class="menu-card">
+      <img class="menu-bg" src="/img/menu-bg.jpg" alt="" />
+      <div class="menu-shade"></div>
+      <div class="menu-content">
+        <div class="menu-logo">🏗️</div>
+        <h1 class="menu-title">ПТОшник против Системы</h1>
+        <p class="menu-subtitle">Бумажный ад</p>
+        <div class="menu-buttons">
+          <button class="btn-primary" id="btn-continue">▶ Продолжить</button>
+          <button class="btn-menu" id="btn-new">🆕 Новая игра</button>
+          <button class="btn-menu" id="btn-rules">📖 Как играть</button>
+          <button class="btn-menu" id="btn-policy">🛡️ Конфиденциальность</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Правила / обучение -->
+  <div class="modal-overlay" id="rules-modal" hidden>
+    <div class="modal-card">
+      <h2>📖 Как играть</h2>
+      <div class="modal-body">
+        <p>Ты — Егор, новичок производственно-технического отдела. Тебе нужно
+        пережить 10 рабочих дней и добраться до одной из пяти концовок.</p>
+        <ul>
+          <li>⚡ <b>Энергия</b> и 🙂 <b>настроение</b> — упадут до нуля, Егор выдохнется и уйдёт на восстановление. Силы вернутся сами через 15 минут, а ролик позволит продолжить сразу.</li>
+          <li>🎖 <b>Авторитет</b> и прокачанные навыки открывают лучшие варианты в финале.</li>
+          <li>⭐ <b>Навыки</b> — каллиграфия печатей, скорочтение ГОСТов, стелс-уход с совещаний — растут от твоих решений.</li>
+          <li>🎒 <b>Инвентарь</b> — фляжка, пирожок и энергетик восстанавливают силы, их можно использовать в любой момент.</li>
+          <li>❓ У вариантов с замком 🔒 написано требование: предмет, деньги, уровень навыка или авторитет.</li>
+          <li>🎲 Рискованные выборы показывают шанс: чем выше навык, тем чаще успех.</li>
+        </ul>
+        <p>Прогресс сохраняется автоматически. Удачи в бумажном аду!</p>
+      </div>
+      <button class="btn-primary modal-close">Понятно</button>
+    </div>
+  </div>
+
+  <!-- Политика конфиденциальности -->
+  <div class="modal-overlay" id="privacy-modal" hidden>
+    <div class="modal-card">
+      <h2>🛡️ Политика конфиденциальности</h2>
+      <div class="modal-body">
+        <p>Игра «ПТОшник против Системы» не запрашивает имя, телефон, email,
+        паспортные данные и другую персональную информацию.</p>
+        <p>Для сохранения прогресса используется числовой идентификатор
+        пользователя платформы и игровое состояние (ресурсы, инвентарь,
+        пройденные сцены). Переписка, контакты, фотографии и местоположение
+        не читаются и не передаются третьим лицам.</p>
+        <p>Данные нужны исключительно для работы игровых механик и хранятся
+        в хранилище платформы. Рекламные ролики (если используются)
+        показываются через официальный рекламный кабинет платформы по её
+        собственным правилам.</p>
+        <p>Начать игру заново и удалить сохранение можно кнопкой 🔄 в любой
+        момент.</p>
+      </div>
+      <button class="btn-primary modal-close">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- Концовка -->
   <div class="ending-overlay" id="ending-overlay" hidden>
     <div class="ending-card">
       <div class="ending-emoji" id="ending-emoji">🎬</div>
@@ -55,6 +127,7 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/sound.js?v=20261024b"></script>
+  <script src="/static/app.js?v=20261024b"></script>
 </body>
 </html>

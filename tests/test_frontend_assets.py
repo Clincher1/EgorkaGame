@@ -1,0 +1,120 @@
+"""Стражи фронтенда: модерационные инварианты VK и наличие всех ассетов."""
+
+import re
+from pathlib import Path
+
+from game import content
+
+WEB = Path(__file__).parent.parent / "web"
+INDEX_HTML = (WEB / "index.html").read_text(encoding="utf-8")
+APP_JS = (WEB / "app.js").read_text(encoding="utf-8")
+SOUND_JS = (WEB / "sound.js").read_text(encoding="utf-8")
+
+
+def test_index_loads_vk_bridge_and_not_telegram_script():
+    # VK Bridge подключён локальной копией (внешние CDN могут быть
+    # недоступны пользователям из РФ — предупреждение самой документации VK).
+    assert "/static/vendor/vk-bridge.min.js" in INDEX_HTML
+    vendor = WEB / "vendor" / "vk-bridge.min.js"
+    assert vendor.is_file() and vendor.stat().st_size > 1000
+    vendor_text = vendor.read_text(encoding="utf-8")
+    assert "vkBridge" in vendor_text
+    assert "VKWebAppInit" in vendor_text
+    assert "VKWebAppCheckNativeAds" in vendor_text
+    assert "VKWebAppShowNativeAds" in vendor_text
+    # Лицензия MIT приложена рядом с вендорной копией.
+    assert (WEB / "vendor" / "vk-bridge.LICENSE").is_file()
+    # Никаких скриптов чужих платформ в странице, которая отдаётся игрокам.
+    assert "telegram.org" not in INDEX_HTML
+    assert "telegram-web-app" not in INDEX_HTML
+
+
+def test_index_has_no_external_resources():
+    # Все скрипты/стили/картинки должны грузиться с того же origin:
+    # ни одного внешнего http(s)-ресурса в выдаваемой странице.
+    external = re.findall(r"(?:src|href)\s*=\s*[\"']https?://[^\"']+", INDEX_HTML)
+    assert external == [], external
+
+
+def test_app_js_implements_vk_storage_and_rewarded_ads():
+    assert "vk_app_id" in APP_JS  # автоопределение VK-запуска
+    assert "VKWebAppInit" in APP_JS
+    assert "VKWebAppStorageGet" in APP_JS
+    assert "VKWebAppStorageSet" in APP_JS
+    # rewarded: сначала проверка наличия ролика, затем показ
+    assert "VKWebAppCheckNativeAds" in APP_JS
+    assert "VKWebAppShowNativeAds" in APP_JS
+    assert "/api/vk/state" in APP_JS
+
+
+def test_no_telegram_in_player_facing_frontend():
+    # Продукт — VK-only: ни SDK, ни упоминаний чужих платформ в выдаваемых
+    # браузеру файлах быть не должно (требование модерации 3.13/4.1.8).
+    for path in WEB.rglob("*"):
+        if path.suffix not in (".js", ".html", ".css"):
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        assert "telegram" not in text, path
+        assert "tgwebapp" not in text, path
+
+
+def test_default_mode_remains_anonymous_web():
+    # Без платформенных параметров запуска — старое поведение: localStorage-id.
+    assert 'localStorage.getItem("egor_user_id")' in APP_JS
+
+
+def test_every_art_asset_exists_on_disk():
+    referenced = set(content.SCENE_BACKGROUNDS.values())
+    referenced.add(content.DEFAULT_BACKGROUND)
+    referenced.update(content.SCENE_PORTRAITS.values())
+    img_dir = WEB / "static" / "img"
+    for filename in referenced:
+        assert (img_dir / filename).is_file(), filename
+
+
+def test_every_sound_asset_exists_on_disk():
+    for wav in re.findall(r"/sounds/([\w-]+\.wav)", SOUND_JS):
+        assert (WEB / "static" / "sounds" / wav).is_file(), wav
+
+
+def test_branding_matches_registered_vk_name():
+    assert "ПТОшник против Системы" in INDEX_HTML
+    # Старое рабочее название не должно оставаться в витринных текстах.
+    assert "Битва за Участок" not in INDEX_HTML
+
+
+def test_css_hidden_attribute_overrides_flex_overlays():
+    # display:flex у .menu-overlay/.modal-overlay/.ending-overlay перебивал
+    # браузерное [hidden]{display:none}: модалки висели поверх игры и не
+    # закрывались. Правило с !important возвращает атрибуту hidden силу.
+    css = (WEB / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"\[hidden\]\s*\{\s*display:\s*none\s*!important", css)
+
+
+def test_all_overlays_start_hidden_in_html():
+    # Каждый полноэкранный оверлей должен быть скрыт атрибутом при загрузке,
+    # иначе до фикса CSS он виден поверх игры (приватная модалка всплывала
+    # самой первой, т.к. стоит последней в DOM).
+    for tag in re.findall(r"<div[^>]*class=\"[^\"]*(?:menu-overlay|modal-overlay|ending-overlay)[^\"]*\"[^>]*>", INDEX_HTML):
+        assert "hidden" in tag, tag
+
+
+def test_modal_close_handlers_present_in_js():
+    # Подстраховка со стороны логики: обработчик закрытия и привязка к кнопкам.
+    assert "querySelectorAll(\".modal-close\")" in APP_JS
+    assert "querySelectorAll(\".modal-overlay\")" in APP_JS
+    assert "closeModals" in APP_JS
+
+
+def test_overlay_visibility_uses_inline_style_guard():
+    # Инлайн display:none не зависит от закэшированного CSS.
+    assert "function setHidden" in APP_JS
+    assert 'node.style.display = hidden ? "none" : ""' in APP_JS
+    # bootstrap обязан гасить модалки до сетевой логики
+    assert "closeModals();" in APP_JS
+
+
+def test_assets_are_versioned_for_cache_busting():
+    # Версия в query-строке заставляет WebView скачать свежие файлы.
+    for asset in ("style.css", "app.js", "sound.js", "vk-bridge.min.js"):
+        assert re.search(rf'"?{re.escape(asset)}\?v=\d+[a-z]?', INDEX_HTML), asset

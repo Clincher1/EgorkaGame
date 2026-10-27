@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import random
+import time
 from dataclasses import dataclass
 
 from .content import (
@@ -29,6 +30,14 @@ FATIGUE_ENERGY = 10
 FATIGUE_MOOD = 8
 REST_ENERGY = 8
 REST_MOOD = 5
+
+# VK-режим: истощение вместо мгновенной концовки
+EXHAUSTED_SCENE = "exhausted_rest"
+RECOVERY_SECONDS = 15 * 60       # сколько Егор восстанавливается сам
+RECOVERY_REFILL = 45             # до какого уровня поднимаются ресурсы
+AD_REWARD_COOLDOWN = 60          # антинакрутка: не чаще ролика раз в минуту
+AD_REWARD_ENERGY = 35            # награда за просмотр рекламы
+AD_REWARD_MOOD = 25
 
 
 @dataclass
@@ -259,13 +268,132 @@ def _handle_next(state: GameState, next_value: str, rng: random.Random) -> list[
 
 
 def _check_zero_endings(state: GameState) -> str | None:
-    """Мгновенные концовки при обнулении ресурсов."""
+    """Мгновенные концовки при обнулении ресурсов (Telegram-режим)."""
     for resource, ending_id in ZERO_ENDING.items():
         if getattr(state, resource) <= 0:
             state.over = True
             state.ending = ending_id
             return ending_id
     return None
+
+
+def _enter_exhausted(state: GameState, now_ts: int) -> None:
+    """Переводим Егора в режим восстановления с таймером (VK-режим)."""
+    if state.scene_id != EXHAUSTED_SCENE:
+        state.exhausted_scene = state.scene_id
+    state.exhausted_until = now_ts + RECOVERY_SECONDS
+    state.scene_id = EXHAUSTED_SCENE
+    if EXHAUSTED_SCENE not in state.seen_scenes:
+        state.seen_scenes.append(EXHAUSTED_SCENE)
+
+
+def _restore_from_exhaustion(state: GameState) -> None:
+    """Время вышло — возвращаем ресурсы и исходную сцену."""
+    state.energy = max(state.energy, RECOVERY_REFILL)
+    state.mood = max(state.mood, RECOVERY_REFILL)
+    state.exhausted_until = None
+    state.scene_id = state.exhausted_scene or "intro"
+    state.exhausted_scene = None
+
+
+def tick(state: GameState, now_ts: int | None = None) -> bool:
+    """Проверка таймеров при загрузке состояния. True — если восстановился."""
+    now_ts = int(time.time()) if now_ts is None else now_ts
+    if state.exhausted_until is not None and now_ts >= state.exhausted_until:
+        _restore_from_exhaustion(state)
+        return True
+    return False
+
+
+def grant_ad_reward(
+    state: GameState, now_ts: int | None = None
+) -> tuple[bool, list[str]]:
+    """Награда за просмотр rewarded-ролика, с серверным кулдауном."""
+    now_ts = int(time.time()) if now_ts is None else now_ts
+    last_ad = int(state.flag("last_ad_at", 0))
+    if now_ts - last_ad < AD_REWARD_COOLDOWN:
+        wait = AD_REWARD_COOLDOWN - (now_ts - last_ad)
+        return False, [f"⏳ Следующий ролик доступен через {wait} сек."]
+
+    state.set_flag("last_ad_at", now_ts)
+    was_exhausted = state.exhausted_until is not None
+    state.exhausted_until = None
+    if was_exhausted:
+        state.scene_id = state.exhausted_scene or state.scene_id
+        state.exhausted_scene = None
+
+    state.energy = min(STAT_MAX, state.energy + AD_REWARD_ENERGY)
+    state.mood = min(STAT_MAX, state.mood + AD_REWARD_MOOD)
+    lines = [
+        "📺 Ролик просмотрен до конца — награда получена!",
+        f"⚡ Энергия +{AD_REWARD_ENERGY}, 🙂 настроение +{AD_REWARD_MOOD}",
+    ]
+    if was_exhausted:
+        lines.append("💪 Силы вернулись — продолжаем работу!")
+    return True, lines
+
+
+def _resolve_zero_resources(
+    state: GameState,
+    permadeath: bool,
+    now_ts: int,
+    lines: list[str],
+) -> bool:
+    """Возвращает True, если игра окончена (только Telegram-режим)."""
+    zero_resource = next(
+        (r for r in ("energy", "mood") if getattr(state, r) <= 0), None
+    )
+    if zero_resource is None:
+        return False
+
+    if permadeath:
+        ending_id = ZERO_ENDING[zero_resource]
+        state.over = True
+        state.ending = ending_id
+        ending = ENDINGS[ending_id]
+        lines.append(f"\n{ending['emoji']} КОНЦОВКА: {ending['title']}")
+        return True
+
+    # VK-режим: не конец игры, а пауза на восстановление
+    _enter_exhausted(state, now_ts)
+    resource_name = "Энергия" if zero_resource == "energy" else "Настроение"
+    lines.append(
+        f"\n😮‍💨 {resource_name} на нуле! Егор без сил. Отдых "
+        f"{RECOVERY_SECONDS // 60} минут — или ролик, чтобы вернуться сразу."
+    )
+    return False
+
+
+def _choose_exhausted(
+    state: GameState, option_index: int, now_ts: int
+) -> ChoiceResult:
+    """Обработка выбора на экране восстановления."""
+    scene = get_scene(state)
+    if option_index != 0:
+        return ChoiceResult(
+            ["⛔ Сейчас доступен только отдых (или реклама)."], state, scene, False
+        )
+    if tick(state, now_ts):
+        return ChoiceResult(
+            ["💪 Отдых закончился, силы вернулись! Возвращаемся к делам."],
+            state,
+            get_scene(state),
+            False,
+        )
+    remaining = max(0, int(state.exhausted_until) - now_ts)
+    minutes, seconds = divmod(remaining, 60)
+    return ChoiceResult(
+        [
+            (
+                f"⏳ Егор ещё восстанавливается: осталось {minutes} мин "
+                f"{seconds:02d} сек. Не хотите ждать — посмотрите ролик "
+                "и вернитесь сразу."
+            )
+        ],
+        state,
+        scene,
+        False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -276,8 +404,16 @@ def choose(
     state: GameState,
     option_index: int,
     rng: random.Random | None = None,
+    permadeath: bool = True,
+    now_ts: int | None = None,
 ) -> ChoiceResult:
     rng = rng or random
+    now_ts = int(time.time()) if now_ts is None else now_ts
+
+    # VK-режим: экран восстановления блокирует обычные выборы
+    if state.scene_id == EXHAUSTED_SCENE:
+        return _choose_exhausted(state, option_index, now_ts)
+
     scene = ALL_SCENES[state.scene_id]
     option = scene["options"][option_index]
 
@@ -309,21 +445,22 @@ def choose(
         lines.append(f"\n{ending['emoji']} КОНЦОВКА: {ending['title']}")
         return ChoiceResult(lines, state, get_scene(state), True)
 
-    zero_ending = _check_zero_endings(state)
-    if zero_ending:
-        ending = ENDINGS[zero_ending]
-        lines.append(f"\n{ending['emoji']} КОНЦОВКА: {ending['title']}")
+    if _resolve_zero_resources(state, permadeath, now_ts, lines):
         return ChoiceResult(lines, state, get_scene(state), True)
+    # VK-режим: истощение прерывает цепочку — переход дня не выполняется
+    if state.exhausted_until is not None:
+        state.add_log(lines[0] if lines else "")
+        return ChoiceResult(lines, state, get_scene(state), False)
 
     if next_value:
         lines.extend(_handle_next(state, next_value, rng))
 
     # Случайное событие тоже может обнулить ресурсы
-    zero_ending = _check_zero_endings(state)
-    if zero_ending:
-        ending = ENDINGS[zero_ending]
-        lines.append(f"\n{ending['emoji']} КОНЦОВКА: {ending['title']}")
-        return ChoiceResult(lines, state, get_scene(state), True)
+    if _resolve_zero_resources(state, permadeath, now_ts, lines):
+        return ChoiceResult(lines, state, get_scene(state), state.over)
+    if state.exhausted_until is not None:
+        state.add_log(lines[0] if lines else "")
+        return ChoiceResult(lines, state, get_scene(state), False)
 
     state.add_log(lines[0] if lines else "")
     return ChoiceResult(lines, state, get_scene(state), False)
@@ -333,10 +470,16 @@ def choose(
 # Расходники вне сцен
 # ---------------------------------------------------------------------------
 
-def use_item(state: GameState, item_id: str) -> list[str]:
+def use_item(
+    state: GameState,
+    item_id: str,
+    permadeath: bool = True,
+    now_ts: int | None = None,
+) -> list[str]:
     """Использовать расходный предмет из инвентаря."""
     if state.over:
         return ["Игра уже окончена. Начните новую через /newgame."]
+    now_ts = int(time.time()) if now_ts is None else now_ts
     if not state.has_item(item_id):
         return ["Такого предмета нет в инвентаре."]
     if item_id not in CONSUME_EFFECTS:
@@ -347,5 +490,5 @@ def use_item(state: GameState, item_id: str) -> list[str]:
 
     lines = [f"🎒 Используем: {ITEMS[item_id]['emoji']} {ITEMS[item_id]['name']}"]
     lines.extend(_apply_effects(state, CONSUME_EFFECTS[item_id]))
-    _check_zero_endings(state)
+    _resolve_zero_resources(state, permadeath, now_ts, lines)
     return lines

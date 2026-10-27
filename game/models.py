@@ -64,6 +64,10 @@ class GameState:
     log: list[str] = field(default_factory=list)
     # Сообщения последнего выбора — чтобы показать их после перезагрузки
     last_lines: list[str] = field(default_factory=list)
+    # VK-режим: unix-время, до которого Егор «восстанавливается» после нуля
+    exhausted_until: int | None = None
+    # Сцена, на которой игрока накрыло истощение (чтобы вернуть его обратно)
+    exhausted_scene: str | None = None
     over: bool = False
     ending: str | None = None
 

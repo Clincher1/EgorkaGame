@@ -1161,8 +1161,33 @@ RANDOM_SCENES: dict[str, dict] = {
 # Вероятность случайного события после окончания рабочего дня
 RANDOM_EVENT_CHANCE = 0.6
 
+# Служебная сцена VK-режима: восстановление после обнуления ресурса.
+# В обычном (Telegram) режиме не показывается — там ресурс до нуля = концовка.
+EXHAUSTED_SCENE_DATA = {
+    "day": 0,
+    "emoji": "😮‍💨",
+    "title": "Егор без сил",
+    "text": (
+        "Глаза закрываются сами, рука не держит красную ручку, а МК-52 "
+        "показывает на дисплее что-то сочувственное.\n\n"
+        "Организм объявил забастовку. Нужно отдышаться: силы вернутся "
+        "сами через 15 минут. А если ждать некогда — можно посмотреть "
+        "короткий ролик, и Егор снова в строю."
+    ),
+    "options": [
+        {
+            "label": "☕ Спокойно отдыхать до восстановления",
+            "outcome": {
+                "text": "Ты откидываешься на стул и прикрываешь глаза...",
+                "effects": {},
+                "next": "exhausted_rest",
+            },
+        }
+    ],
+}
+
 # Все сцены игры в одном словаре
-ALL_SCENES: dict[str, dict] = {**SCENES, **RANDOM_SCENES}
+ALL_SCENES: dict[str, dict] = {**SCENES, **RANDOM_SCENES, "exhausted_rest": EXHAUSTED_SCENE_DATA}
 
 # ============================================================================
 # КОНЦОВКИ
@@ -1243,4 +1268,46 @@ ENDINGS: dict[str, dict] = {
 ZERO_ENDING = {
     "energy": "tragedy",
     "mood": "metro",
+}
+
+# ---------------------------------------------------------------------------
+# АРТ: фоны и портреты сцен (web/static/img, отдаются по маршруту /img)
+# ---------------------------------------------------------------------------
+
+SCENE_BACKGROUNDS: dict[str, str] = {
+    "intro": "office.jpg",
+    "day1_act": "office.jpg",
+    "day2_stamp": "office.jpg",
+    "day3_meeting": "meeting.jpg",
+    "day3_meeting2": "meeting.jpg",
+    "day4_svetlana": "office.jpg",
+    "day5_sim": "office.jpg",
+    "day5_sim2": "office.jpg",
+    "day5_sim3": "office.jpg",
+    "day6_inspector": "meeting.jpg",
+    "day7_search": "office.jpg",
+    "day7_search2": "office.jpg",
+    "day8_geologists": "taiga.jpg",
+    "day9_shop": "office.jpg",
+    "finale": "finale.jpg",
+    "exhausted_rest": "office.jpg",
+}
+DEFAULT_BACKGROUND = "office.jpg"
+
+# Портрет говорящего/ключевого персонажа сцены
+SCENE_PORTRAITS: dict[str, str] = {
+    "intro": "ivanych.jpg",
+    "day1_act": "petrovich.jpg",
+    "day2_stamp": "petrovich.jpg",
+    "day4_svetlana": "svetlana.jpg",
+    "day5_sim": "egor.jpg",
+    "day5_sim2": "egor.jpg",
+    "day5_sim3": "egor.jpg",
+    "day6_inspector": "petrovich.jpg",
+    "day7_search": "petrovich.jpg",
+    "day7_search2": "petrovich.jpg",
+    "day8_geologists": "egor.jpg",
+    "day9_shop": "ivanych.jpg",
+    "finale": "egor.jpg",
+    "exhausted_rest": "egor.jpg",
 }

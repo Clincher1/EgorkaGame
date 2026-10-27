@@ -1,5 +1,6 @@
-# Деплой на Render.com (бесплатный тариф Web Service).
-# В дашборде: New + → Blueprint → выбрать этот файл из репозитория.
+# Деплой на Render.com (бесплатный тариф Web Service) под VK Mini App.
+# В дашборде: New + → Blueprint → подключить репозиторий → выбрать этот файл.
+# Значения с sync: false вводятся вручную в дашборде (секреты не в git).
 services:
   - type: web
     name: egor-pto-game
@@ -7,15 +8,16 @@ services:
     plan: free
     healthCheckPath: /healthz
     envVars:
-      - key: BOT_TOKEN
-        sync: false          # вписать токен BotFather в дашборде
-      - key: BOT_MODE
-        value: webhook
-      - key: WEBHOOK_URL
-        sync: false          # https://<имя-сервиса>.onrender.com
-      - key: WEBAPP_URL
-        sync: false          # тот же адрес
-      - key: SUPABASE_URL
+      # ID приложения из dev.vk.com — не секрет, лежит в манифесте открыто.
+      - key: VK_APP_ID
+        value: "54850918"
+      # Защищённый ключ приложения: Настройки → Разработка → Защищённый ключ.
+      - key: VK_SECRET
+        generateValue: false
         sync: false
-      - key: SUPABASE_KEY
-        sync: false
+      # Мягкая монетизация и цензура для каталога VK.
+      - key: CENSOR_MODE
+        value: symbols
+      - key: PERMADEATH
+        value: "false"
+      # Render сам подставляет PORT в переменную PORT, её читает game.config.
